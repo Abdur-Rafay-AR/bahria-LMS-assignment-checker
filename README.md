@@ -64,9 +64,6 @@ Contributions welcome! Please:
 2. Create feature branch
 3. Submit PR with detailed description
 
-## License 📄
-MIT License - See [LICENSE](LICENSE) for details
-
 ## Disclaimer ⚠️
 This unofficial tool is not affiliated with Bahria University. Use at your own risk. Credentials are processed securely but users should exercise caution.
 
