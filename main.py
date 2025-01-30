@@ -12,7 +12,7 @@ import os
 def wait(driver, byMeth, elem_name, delay=15):
     return WebDriverWait(driver, delay).until(EC.presence_of_element_located((byMeth, elem_name)))
 
-def get_assignments(enroll, password):
+def get_assignments(enroll, password, progress_callback):
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
@@ -35,15 +35,23 @@ def get_assignments(enroll, password):
         course_select = wait(driver, By.ID, 'courseId')
         course_ids = {option.get_attribute("value"): option.text for option in course_select.find_elements(By.TAG_NAME, "option")}
 
-        for course_id, course_name in course_ids.items():
+        total_courses = len(course_ids)
+        for index, (course_id, course_name) in enumerate(course_ids.items()):
+            if course_name == "Select Course":
+                continue
             course_url = f"https://lms.bahria.edu.pk/Student/Assignments.php?s=MjAyNDM%3D&oc={course_id}"
             driver.get(course_url)
-            assignments_due = len(re.findall('(?=(No Submission))', driver.page_source))
+            assignments_due = 0
+            rows = driver.find_element(By.CSS_SELECTOR, ".table.table-hover").find_elements(By.TAG_NAME, 'tr')
+            for row in rows:
+                if 'No Submission' in row.text and 'Deadline Exceeded' not in row.text:
+                    assignments_due += 1
             results.append({
                 "course": course_name,
                 "assignments_due": assignments_due,
                 "status": "Pending" if assignments_due else "Completed"
             })
+            progress_callback(0.95 * (index / total_courses))
     
     return results
 
@@ -68,6 +76,10 @@ st.markdown("""
                 --background-color: #f8f9fa;
             }
         }
+        @media (max-width: 768px) {
+            .title-text { font-size: 24px; }
+            .status-box { font-size: 14px; }
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -86,12 +98,12 @@ if submitted:
         with st.spinner("Checking assignments..."):
             try:
                 progress_bar = st.progress(0)
-                results = get_assignments(enroll, password)
+                results = get_assignments(enroll, password, progress_bar.progress)
                 
                 st.subheader("📌 Assignment Status")
                 cols = st.columns(2)
                 
-                for index, result in enumerate(results[1:], start=1):
+                for index, result in enumerate(results, start=1):
                     status_class = "pending" if result['assignments_due'] else "completed"
                     cols[index % 2].markdown(f"""
                     <div class="status-box {status_class}">
@@ -100,23 +112,28 @@ if submitted:
                         <p style="margin: 0">Status: <strong>{result['status']}</strong></p>
                     </div>
                     """, unsafe_allow_html=True)
-                    progress_bar.progress((index + 1) / len(results))
                 
-                total_due = sum(item['assignments_due'] for item in results[1:])
+                total_due = sum(item['assignments_due'] for item in results)
                 st.markdown(f"""
-                <div style="padding: 20px; border-radius: 10px; text-align: center; background: linear-gradient(45deg, #2c3e50, #1abc9c); color: #fff">
+                <div style="padding: 20px; border-radius: 10px; text-align: center; background: linear-gradient(45deg, #0b1c26, #0a4d3b); color: #fff">
                     <h3>Total Assignments Pending</h3>
                     <p style="font-size: 24px; font-weight: bold;">{total_due}</p>
                 </div>
                 """, unsafe_allow_html=True)
+                
+                progress_bar.progress(1.0)  # Indicate completion
                 
             except Exception as e:
                 st.error(f"An error occurred: {str(e)}")
 
 st.markdown("---")
 st.markdown('<p style="text-align: center; color: red; font-weight: bold;">⚠️ This is an unofficial interface and not affiliated with Bahria University</p>', unsafe_allow_html=True)
-st.markdown("""
-    <div style="position: fixed; bottom: 0; width: 100%; background-color: black; color: #f8f9fa; text-align: center; padding: 10px 0; left: 0;">
-        <p style="margin: 0; font-size: 14px;">Developed by <strong>Abdur Rafay</strong>. Check out the source code on <a href="https://github.com/Abdur-Rafay-AR/bahria-LMS-assignment-checker" target="_blank" style="color: #1abc9c;">GitHub</a>.</p>
+
+developer_name = "Abdur Rafay"
+github_url = "https://github.com/Abdur-Rafay-AR/bahria-LMS-assignment-checker"
+
+st.markdown(f"""
+    <div style="position:relative; bottom:0; background-color: black; color: #f8f9fa; text-align: center; padding: 10px 0; width: 50%; margin: 0 auto; border-radius: 10px;">
+        <p style="margin: 0; font-size: 14px;">Developed by <strong>{developer_name}</strong>. Check out the source code on <a href="{github_url}" target="_blank" style="color: #1abc9c;">GitHub</a>.</p>
     </div>
 """, unsafe_allow_html=True)
