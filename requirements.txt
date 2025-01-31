@@ -1,6 +1,3 @@
-Here is the list of packages without versions:
-
-```
 aiohttp
 aiosignal
 altair
@@ -101,4 +98,3 @@ webdriver-manager
 wheel
 wsproto
 yarl
-```
