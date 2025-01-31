@@ -6,6 +6,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager  
 import re
 import os
 
@@ -17,11 +18,11 @@ def get_assignments(enroll, password, progress_callback):
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    service = Service(executable_path=os.getenv("CHROMEDRIVER_PATH", "chromedriver.exe"))
+    service = Service(ChromeDriverManager().install()) 
     
     results = []
     
-    with webdriver.Chrome(service=Service(ChromeDriverManager().install()),options=options) as driver:
+    with webdriver.Chrome(service=service, options=chrome_options) as driver:
         driver.get('https://cms.bahria.edu.pk/Logins/Student/Login.aspx')
         wait(driver, By.ID, 'BodyPH_tbEnrollment').send_keys(enroll)
         wait(driver, By.ID, 'BodyPH_tbPassword').send_keys(password)
