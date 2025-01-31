@@ -21,7 +21,7 @@ def get_assignments(enroll, password, progress_callback):
     
     results = []
     
-    with webdriver.Chrome(service=service, options=chrome_options) as driver:
+    with webdriver.Chrome(service=Service(ChromeDriverManager().install()),options=options) as driver:
         driver.get('https://cms.bahria.edu.pk/Logins/Student/Login.aspx')
         wait(driver, By.ID, 'BodyPH_tbEnrollment').send_keys(enroll)
         wait(driver, By.ID, 'BodyPH_tbPassword').send_keys(password)
