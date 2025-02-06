@@ -25,7 +25,7 @@ A streamlined tool to check pending LMS assignments for Bahria University studen
 
 2. **Install Dependencies**
    ```bash
-   pip install streamlit selenium webdriver-manager
+   pip install -r requirements.txt
    ```
 
 3. **ChromeDriver Setup**
