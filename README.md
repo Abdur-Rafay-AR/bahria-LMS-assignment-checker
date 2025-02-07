@@ -28,14 +28,6 @@ A streamlined tool to check pending LMS assignments for Bahria University studen
    pip install -r requirements.txt
    ```
 
-3. **ChromeDriver Setup**
-   - Download [ChromeDriver](https://chromedriver.chromium.org/)
-   - Place `chromedriver.exe` in project root _or_
-   - Set environment variable:
-     ```bash
-     export CHROMEDRIVER_PATH="/path/to/chromedriver"
-     ```
-
 ## Usage 🖥️
 
 1. **Run Application**
