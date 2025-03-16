@@ -32,14 +32,12 @@ def get_assignments(enroll, password, progress_callback):
 
         wait(driver, By.LINK_TEXT, 'Go To LMS').click()
         driver.switch_to.window(driver.window_handles[-1])
-        driver.get('https://lms.bahria.edu.pk/Student/Assignments.php')
+        driver.get('https://lms.bahria.edu.pk/Student/Assignments.php?s=MjAyNTE%3D')
 
         course_select = wait(driver, By.ID, 'courseId')
         course_ids = {option.get_attribute("value"): option.text for option in course_select.find_elements(By.TAG_NAME, "option")}
 
         total_courses = len(course_ids)
-        with open("data.txt", "w") as f:
-            f.write("")  # Clear existing data
             
         for index, (course_id, course_name) in enumerate(course_ids.items()):
             if course_name == "Select Course":
@@ -48,114 +46,106 @@ def get_assignments(enroll, password, progress_callback):
             course_url = f"https://lms.bahria.edu.pk/Student/Assignments.php?s=MjAyNTE%3D&oc={course_id}"
             driver.get(course_url)
             
-            with open("data.txt", "a") as f:
-                f.write(f"Course: {course_name}\n")
-            
             assignments_due = 0
+            course_assignments = []
+
             try:
                 table = wait(driver, By.CSS_SELECTOR, ".table.table-hover")
                 rows = table.find_elements(By.TAG_NAME, 'tr')
                 
-                for row in rows:
-                    row_text = row.text
-                    with open("data.txt", "a") as f:
-                        f.write(f"{row_text}\n")
+                # Skip header row
+                if rows:
+                    rows = rows[1:]  # Skip the header row
+                
+                current_assignment = None
+                
+                for i in range(0, len(rows)):
+                    row = rows[i]
+                    cells = row.find_elements(By.TAG_NAME, 'td')
+                    
+                    # Skip if no cells or empty row
+                    if not cells or len(cells) < 2:
+                        continue
+                    
+                    # Check if this is an assignment row (first cell is a number)
+                    if len(cells) >= 8 and cells[0].text.strip().isdigit():
+                        # If an assignment was being tracked, store it first
+                        if current_assignment:
+                            course_assignments.append(current_assignment)
                         
-                    if 'No Submission' in row_text and 'Deadline Exceeded' not in row_text:
-                        assignments_due += 1
+                        assign_num = cells[0].text.strip()
+                        assign_title = cells[1].text.strip()
+                        
+                        # Initialize new assignment
+                        current_assignment = {
+                            "number": assign_num,
+                            "title": assign_title,
+                            "marks": "N/A",
+                            "status": "No Submission",
+                            "comments": "",
+                            "extended_deadline": "N/A",
+                            "initial_deadline": "N/A"
+                        }
+                        
+                        # Extract marks if available
+                        if len(cells) >= 5 and cells[4].text.strip():
+                            marks_text = cells[4].text.strip()
+                            if marks_text and marks_text != '---':
+                                current_assignment["marks"] = marks_text
+                        
+                        # Check for comments
+                        if len(cells) >= 6 and cells[5].text.strip() and cells[5].text.strip() != '---':
+                            comments = cells[5].text.strip().replace('Hover To View Comments', '').strip()
+                            current_assignment["comments"] = comments
+                        
+                        # Check submission status
+                        if len(cells) >= 7:
+                            status_cell = cells[6].text.strip()
+                            if "Deadline Exceeded" in status_cell:
+                                current_assignment["status"] = "Deadline Exceeded"
+                        
+                        # Extract deadlines from the last cell
+                        if len(cells) >= 8:
+                            deadline_cell = cells[7]
+                            
+                            # Look for both extended and actual deadline labels
+                            extended_labels = deadline_cell.find_elements(By.CSS_SELECTOR, ".label-warning[title*='Extended']")
+                            actual_labels = deadline_cell.find_elements(By.CSS_SELECTOR, ".label-info[title*='Actual']")
+                            
+                            # Get extended deadline if it exists
+                            if extended_labels:
+                                current_assignment["extended_deadline"] = extended_labels[0].text.strip()
+                            
+                            # Get actual deadline
+                            if actual_labels:
+                                current_assignment["initial_deadline"] = actual_labels[0].text.strip()
+                            elif not extended_labels:  # If there's only one deadline and it's not extended
+                                single_label = deadline_cell.find_elements(By.CSS_SELECTOR, ".label-info")
+                                if single_label:
+                                    current_assignment["initial_deadline"] = single_label[0].text.strip()
+                        
+                        # Count pending assignments
+                        if current_assignment["status"] == "No Submission" and "Deadline Exceeded" not in status_cell:
+                            assignments_due += 1
+                
+                # Add the last assignment if there is one
+                if current_assignment:
+                    course_assignments.append(current_assignment)
                         
             except Exception as e:
                 assignments_due = 0
+                print(f"Error processing course {course_name}: {str(e)}")
                 
             results.append({
                 "course": course_name,
                 "assignments_due": assignments_due,
-                "status": "Pending" if assignments_due else "Completed"
+                "status": "Pending" if assignments_due else "Completed",
+                "assignments": course_assignments
             })
-            
-            with open("data.txt", "a") as f:
-                f.write("\n")  # Course separator
                 
             progress_callback(0.95 * (index / total_courses))
     
     return results
-
-def parse_data_file():
-    courses = []
-    current_course = None
-    current_assignments = []
-    current_assignment = None
-
-    with open("data.txt", "r") as f:
-        lines = [line.strip() for line in f]
-
-    for line in lines:
-        if not line:
-            continue
-
-        # Detect new course
-        if line.startswith("Course: "):
-            if current_course:
-                # Store previous course
-                courses.append({"name": current_course, "assignments": current_assignments})
-                current_assignments = []
-            current_course = line.replace("Course: ", "")
-            continue
-
-        # Detect new assignment (must contain the word "Assignment")
-        if re.match(r'^\d+\s.+Assignment', line, re.IGNORECASE):
-            # If an assignment was being tracked, store it first
-            if current_assignment:
-                current_assignments.append(current_assignment)
-            parts = line.split(maxsplit=1)
-            title = re.sub(r'(?i)assignment(\s*\(solution file\))?', '', parts[1]).strip()
-            current_assignment = {
-                "number": parts[0],
-                "title": title,
-                "marks": "N/A",
-                "status": "N/A",
-                "deadlines": []
-            }
-            continue
-
-        # Detect marks
-        if "Hover To View Submission" in line:
-            if current_assignment:
-                for part in line.split():
-                    if part.replace('.', '', 1).isdigit():
-                        current_assignment["marks"] = f"{float(part):.3f}"
-                        break
-            continue
-
-        # Detect deadline exceeded
-        if "Deadline Exceeded" in line and current_assignment:
-            current_assignment["status"] = "Deadline Exceeded"
-            continue
-
-        # Detect date lines
-        cleaned_line = line.replace("- ", "-")
-        if re.match(r'\d{1,2}\s\w+\s\d{4}-?\s?\d{1,2}:\d{2}\s[ap]m', cleaned_line, re.IGNORECASE):
-            if current_assignment:
-                current_assignment["deadlines"].append(cleaned_line)
-            continue
-
-    # Store last assignment + course
-    if current_assignment:
-        current_assignments.append(current_assignment)
-    if current_course:
-        courses.append({"name": current_course, "assignments": current_assignments})
-
-    # Process deadlines
-    for course in courses:
-        for assignment in course["assignments"]:
-            if len(assignment["deadlines"]) >= 2:
-                assignment["extended_deadline"] = assignment["deadlines"][0]
-                assignment["initial_deadline"] = assignment["deadlines"][1]
-            elif assignment["deadlines"]:
-                assignment["initial_deadline"] = assignment["deadlines"][0]
-            del assignment["deadlines"]
-
-    return courses
 
 # Streamlit UI Configuration
 st.set_page_config(page_title="LMS Assignment Checker", page_icon="📚", layout="wide")
@@ -202,14 +192,6 @@ if submitted:
             try:
                 progress_bar = st.progress(0)
                 results = get_assignments(enroll, password, progress_bar.progress)
-                courses_with_assignments = parse_data_file()
-
-                # Merge assignment details into results
-                for result in results:
-                    for course_data in courses_with_assignments:
-                        if course_data["name"] == result["course"]:
-                            result["assignments"] = course_data["assignments"]
-                            break
 
                 # Display UI
                 st.subheader("📌 Assignment Status")
@@ -235,6 +217,7 @@ if submitted:
                                         <strong>#{assignment['number']} {assignment['title']}</strong><br>
                                         📝 Marks: {assignment['marks']}<br>
                                         📅 Status: {assignment['status']}<br>
+                                        {f"💬 Comments: {assignment.get('comments', 'N/A')}<br>" if assignment.get('comments') else ""}
                                         ⏰ Extended Deadline: {assignment.get('extended_deadline', 'N/A')}<br>
                                         ⏳ Initial Deadline: {assignment.get('initial_deadline', 'N/A')}
                                     </div>
