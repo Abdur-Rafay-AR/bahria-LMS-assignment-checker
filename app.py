@@ -1,5 +1,4 @@
 import streamlit as st
-import re
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -103,6 +102,8 @@ def get_assignments(enroll, password, progress_callback):
                             status_cell = cells[6].text.strip()
                             if "Deadline Exceeded" in status_cell:
                                 current_assignment["status"] = "Deadline Exceeded"
+                            if "Delete" in status_cell:
+                                current_assignment["status"] = "Submitted"
                         
                         # Extract deadlines from the last cell
                         if len(cells) >= 8:
@@ -125,7 +126,7 @@ def get_assignments(enroll, password, progress_callback):
                                     current_assignment["initial_deadline"] = single_label[0].text.strip()
                         
                         # Count pending assignments
-                        if current_assignment["status"] == "No Submission" and "Deadline Exceeded" not in status_cell:
+                        if current_assignment["status"] == (("No Submission" and "Deadline Exceeded") or "Submission") not in status_cell:
                             assignments_due += 1
                 
                 # Add the last assignment if there is one
